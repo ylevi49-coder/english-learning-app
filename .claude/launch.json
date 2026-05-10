@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "englishup-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["./node_modules/next/dist/bin/next", "dev", "--turbopack"],
+      "cwd": "C:\\Users\\USER\\Desktop\\claude\\english-learning-app",
+      "port": 3001,
+      "autoPort": false
+    }
+  ]
+}
