@@ -99,7 +99,9 @@ export default function ChatPage() {
     window.speechSynthesis.speak(utt);
   }, []);
 
-  // ── Continuous recognition with silence detection ─────────────
+  // ── Session-based recognition (continuous:false + manual restart) ──
+  // Each session captures ONE utterance → no word duplication across sessions.
+  // We restart immediately after onend and use a 1.8s silence timer to send.
   const startListening = useCallback(() => {
     const w = window as unknown as Record<string, unknown>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,77 +110,101 @@ export default function ChatPage() {
 
     accumulatedRef.current = "";
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = null;
+    setLiveTranscript("");
+    setUserStatus("listening");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec = new SR();
-    rec.lang = "en-US";
-    rec.interimResults = true;
-    rec.continuous = true;          // keeps mic open across pauses
-    rec.maxAlternatives = 1;
-    recognitionRef.current = rec;
-
-    rec.onstart = () => {
-      setUserStatus("listening");
-      setLiveTranscript("");
-      accumulatedRef.current = "";
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
-      // Always read the FULL transcript from all results to avoid duplicates.
-      // The browser accumulates results internally — we just mirror them.
-      let fullText = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript.trim();
-        if (t) fullText += (fullText ? " " : "") + t;
-      }
-
-      accumulatedRef.current = fullText;
-      setLiveTranscript(fullText);
-
-      // Silence timer: 1.8s of no speech → send
-      silenceTimerRef.current = setTimeout(() => {
-        const text = accumulatedRef.current.trim();
-        if (text) {
-          rec.stop();          // triggers onend → sends the message
-        }
-      }, 1800);
-    };
-
-    rec.onerror = (e: { error: string }) => {
-      // "aborted" and "no-speech" are normal – just restart if auto mode
-      if (e.error === "aborted") return;
-      setUserStatus("idle");
-      setLiveTranscript("");
-      if (autoRestartRef.current && e.error === "no-speech") {
-        setTimeout(startListening, 400);
-      }
-    };
-
-    rec.onend = () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    function doSend() {
+      silenceTimerRef.current = null;
+      autoRestartRef.current = false;
+      recognitionRef.current?.abort();
       const text = accumulatedRef.current.trim();
       accumulatedRef.current = "";
       setLiveTranscript("");
       setUserStatus("idle");
-      if (text) {
-        sendVoiceMessage(text);
-      } else if (autoRestartRef.current) {
-        setTimeout(startListening, 400);
-      }
-    };
+      if (text) sendVoiceMessage(text);
+    }
 
-    rec.start();
+    function runSession() {
+      if (!autoRestartRef.current) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = true;
+      rec.continuous = false;   // one utterance → no duplication
+      rec.maxAlternatives = 1;
+      recognitionRef.current = rec;
+
+      let sessionFinal = "";
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rec.onresult = (e: any) => {
+        // User is speaking → cancel silence countdown
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript.trim();
+          if (e.results[i].isFinal) {
+            sessionFinal += (sessionFinal ? " " : "") + t;
+          } else {
+            interim = t;
+          }
+        }
+
+        const displayed = [accumulatedRef.current, sessionFinal || interim]
+          .filter(Boolean).join(" ");
+        setLiveTranscript(displayed);
+      };
+
+      rec.onerror = (e: { error: string }) => {
+        if (e.error === "aborted") return;
+        if (e.error === "no-speech") return; // onend fires next, handles restart
+        setUserStatus("idle");
+        autoRestartRef.current = false;
+      };
+
+      rec.onend = () => {
+        // Commit this session's final text
+        if (sessionFinal) {
+          accumulatedRef.current = [accumulatedRef.current, sessionFinal]
+            .filter(Boolean).join(" ");
+        }
+        sessionFinal = "";
+
+        if (!autoRestartRef.current) {
+          setLiveTranscript("");
+          setUserStatus("idle");
+          return;
+        }
+
+        // Start silence countdown (only if not already running)
+        if (!silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(doSend, 1800);
+        }
+
+        // Restart immediately to keep the mic open
+        setTimeout(runSession, 150);
+      };
+
+      rec.start();
+    }
+
+    runSession();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function stopListening() {
     autoRestartRef.current = false;
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    recognitionRef.current?.stop();
+    silenceTimerRef.current = null;
+    recognitionRef.current?.abort();
     setUserStatus("idle");
     setLiveTranscript("");
+    accumulatedRef.current = "";
   }
 
   function stopEverything() {
@@ -393,11 +419,11 @@ export default function ChatPage() {
           })}
           {userStatus === "listening" && (
             <div className="flex justify-end">
-              <div className="bg-primary-100 border-2 border-primary-300 text-primary-800 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%] text-sm">
+              <div className="bg-primary-100 border-2 border-primary-300 text-primary-800 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%] text-base">
                 <span className="flex items-center gap-1 text-xs text-primary-500 mb-1 font-semibold">
                   <Mic size={10} /> Listening...
                 </span>
-                {liveTranscript || <span className="opacity-40 italic">Say something in English...</span>}
+                {liveTranscript || <span className="opacity-40 italic text-sm">Say something in English...</span>}
               </div>
             </div>
           )}
@@ -477,7 +503,7 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%] text-sm leading-relaxed">
+        <div className="bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%] text-base leading-relaxed">
           {message.content}
         </div>
       </div>
@@ -488,9 +514,8 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
   const displayText = liveText !== undefined ? liveText : (message.display ?? fullConv);
   const corrections = extractCorrections(message.content);
   const isPerfect = corrections.startsWith("✓");
-  const showFeedback = liveText === undefined; // only after Emma finishes speaking
+  const showFeedback = liveText === undefined;
 
-  // Parse correction lines: ❌ "wrong" → ✅ "right" · reason
   const correctionLines = corrections
     .split("\n")
     .filter(l => l.includes("❌") && l.includes("✅"))
@@ -503,10 +528,10 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
 
   return (
     <div className="flex items-start gap-2">
-      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-sm flex-shrink-0 mt-1">👩‍🏫</div>
+      <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-base flex-shrink-0 mt-1">👩‍🏫</div>
       <div className="space-y-1.5 max-w-[85%]">
         {/* Emma's reply */}
-        <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100 text-sm text-gray-800 leading-relaxed">
+        <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100 text-base text-gray-800 leading-relaxed">
           {displayText || <span className="opacity-0">·</span>}
           {liveText !== undefined && (
             <span className="inline-block w-0.5 h-4 bg-purple-400 animate-pulse ml-0.5 align-middle" />
@@ -515,20 +540,20 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
 
         {/* Corrections */}
         {showFeedback && isPerfect && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-1.5 text-xs text-green-700 font-medium">
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-1.5 text-sm text-green-700 font-medium">
             ✓ Perfect English!
           </div>
         )}
         {showFeedback && correctionLines.length > 0 && (
           <div className="space-y-1.5">
             {correctionLines.map((c, i) => (
-              <div key={i} className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-xs">
+              <div key={i} className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-sm">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="line-through text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded">{c.wrong}</span>
+                  <span className="line-through text-red-500 font-medium bg-red-50 px-2 py-0.5 rounded">{c.wrong}</span>
                   <span className="text-gray-400">→</span>
-                  <span className="text-green-700 font-bold bg-green-50 px-1.5 py-0.5 rounded border border-green-200">{c.right}</span>
+                  <span className="text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded border border-green-200">{c.right}</span>
                 </div>
-                {c.reason && <p className="text-gray-500 mt-1">{c.reason}</p>}
+                {c.reason && <p className="text-gray-500 mt-1 text-xs">{c.reason}</p>}
               </div>
             ))}
           </div>
