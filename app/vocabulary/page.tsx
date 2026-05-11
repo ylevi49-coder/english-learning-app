@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, Star, Volume2 } from "lucide-react";
+
+function speakWord(word: string) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(word);
+  utt.lang = "en-US";
+  utt.rate = 0.85;
+  const voices = window.speechSynthesis.getVoices();
+  const eng = voices.find(v => v.lang.startsWith("en")) ;
+  if (eng) utt.voice = eng;
+  window.speechSynthesis.speak(utt);
+}
 import { LESSONS } from "@/lib/curriculum";
 import { getProgress, markWordKnown } from "@/lib/progress";
 import { Button } from "@/components/ui/button";
@@ -183,6 +195,14 @@ function FlashcardMode({
         )}
       </button>
 
+      {/* Speak button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); speakWord(card.word); }}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-sm transition-all active:scale-95"
+      >
+        <Volume2 size={16} /> Hear pronunciation
+      </button>
+
       {/* Navigation */}
       <div className="flex gap-3">
         <Button variant="secondary" onClick={onPrev} className="flex-1">
@@ -219,6 +239,13 @@ function WordList({ words, knownWords, onMarkKnown }: {
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-gray-900">{w.word}</span>
                 <LevelBadge level={w.level} />
+                <button
+                  onClick={() => speakWord(w.word)}
+                  className="p-1 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0"
+                  title="Hear pronunciation"
+                >
+                  <Volume2 size={14} />
+                </button>
               </div>
               <p className="text-primary-600 text-sm">{w.translation}</p>
               <p className="text-gray-400 text-xs italic truncate">{w.example}</p>
