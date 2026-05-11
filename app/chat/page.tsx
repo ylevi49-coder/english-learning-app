@@ -127,17 +127,16 @@ export default function ChatPage() {
     rec.onresult = (e: any) => {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          accumulatedRef.current += (accumulatedRef.current ? " " : "") + t;
-        } else {
-          interim = t;
-        }
+      // Always read the FULL transcript from all results to avoid duplicates.
+      // The browser accumulates results internally — we just mirror them.
+      let fullText = "";
+      for (let i = 0; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript.trim();
+        if (t) fullText += (fullText ? " " : "") + t;
       }
 
-      setLiveTranscript(accumulatedRef.current + (interim ? " " + interim : ""));
+      accumulatedRef.current = fullText;
+      setLiveTranscript(fullText);
 
       // Silence timer: 1.8s of no speech → send
       silenceTimerRef.current = setTimeout(() => {

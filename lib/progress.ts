@@ -10,6 +10,7 @@ function defaultProgress(): UserProgress {
     level: "A1",
     completedLessons: [],
     vocabularyKnown: [],
+    vocabularyHard: [],
     xp: 0,
     streak: 0,
     lastActivity: new Date().toISOString(),
@@ -47,6 +48,21 @@ export function markWordKnown(wordId: string): void {
     p.vocabularyKnown.push(wordId);
     p.xp += 2;
   }
+  p.vocabularyHard = (p.vocabularyHard ?? []).filter(id => id !== wordId);
+  saveProgress(p);
+}
+
+export function markWordHard(wordId: string): void {
+  const p = getProgress();
+  if (!(p.vocabularyHard ?? []).includes(wordId)) {
+    p.vocabularyHard = [...(p.vocabularyHard ?? []), wordId];
+  }
+  saveProgress(p);
+}
+
+export function unmarkWordHard(wordId: string): void {
+  const p = getProgress();
+  p.vocabularyHard = (p.vocabularyHard ?? []).filter(id => id !== wordId);
   saveProgress(p);
 }
 

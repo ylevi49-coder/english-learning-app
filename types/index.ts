@@ -48,6 +48,7 @@ export interface UserProgress {
   level: CEFRLevel;
   completedLessons: string[];
   vocabularyKnown: string[];
+  vocabularyHard: string[];
   xp: number;
   streak: number;
   lastActivity: string;
