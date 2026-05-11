@@ -58,6 +58,27 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, liveTranscript, emmaTyping]);
 
+  // ── Pick a consistent English voice ──────────────────────────
+  function pickEnglishVoice(utt: SpeechSynthesisUtterance) {
+    const vs = window.speechSynthesis.getVoices();
+    utt.voice =
+      vs.find(v => v.lang.startsWith("en") && /samantha|karen|moira|victoria|zira|susan|female/i.test(v.name)) ??
+      vs.find(v => v.lang.startsWith("en-GB")) ??
+      vs.find(v => v.lang.startsWith("en")) ?? null;
+  }
+
+  // ── Speak plain text (no typewriter) ─────────────────────────
+  const speakPlain = useCallback((text: string, onDone?: () => void) => {
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = "en-US";
+    utt.rate = 0.82;
+    utt.pitch = 1.05;
+    if (window.speechSynthesis.getVoices().length) pickEnglishVoice(utt);
+    else window.speechSynthesis.onvoiceschanged = () => pickEnglishVoice(utt);
+    utt.onend = () => onDone?.();
+    window.speechSynthesis.speak(utt);
+  }, []);
+
   // ── TTS with typewriter ───────────────────────────────────────
   const speakWithTypewriter = useCallback((text: string, onDone?: () => void) => {
     window.speechSynthesis?.cancel();
@@ -80,15 +101,8 @@ export default function ChatPage() {
     utt.lang = "en-US";
     utt.rate = 0.88;
     utt.pitch = 1.05;
-    const pickVoice = () => {
-      const vs = window.speechSynthesis.getVoices();
-      utt.voice =
-        vs.find(v => v.lang.startsWith("en") && /samantha|karen|moira|victoria|zira|susan|female/i.test(v.name)) ??
-        vs.find(v => v.lang.startsWith("en-GB")) ??
-        vs.find(v => v.lang.startsWith("en")) ?? null;
-    };
-    if (window.speechSynthesis.getVoices().length) pickVoice();
-    else window.speechSynthesis.onvoiceschanged = pickVoice;
+    if (window.speechSynthesis.getVoices().length) pickEnglishVoice(utt);
+    else window.speechSynthesis.onvoiceschanged = () => pickEnglishVoice(utt);
 
     utt.onend = () => {
       clearInterval(typingTimerRef.current!);
@@ -219,6 +233,26 @@ export default function ChatPage() {
     setEmmaTyping("");
   }
 
+  // ── Build spoken correction text ─────────────────────────────
+  function buildSpokenCorrections(correctionsText: string): string {
+    if (!correctionsText || correctionsText.startsWith("✓")) return "";
+    const lines = correctionsText.split("\n").filter(l => l.includes("❌") && l.includes("✅"));
+    if (lines.length === 0) return "";
+
+    const spoken = lines.map(line => {
+      const wrong = (line.match(/❌\s*["""]?([^"""→✅\n]+?)["""]?\s*→/)?.[1] ?? "").trim();
+      const right = (line.match(/✅\s*["""]?([^"""·•\n]+?)["""]?\s*[·•]/)?.[1]
+        ?? line.match(/✅\s*["""]?([^"""\n]+)/)?.[1] ?? "").trim();
+      const reason = (line.match(/[·•]\s*(.+)/)?.[1] ?? "").trim();
+      if (!wrong || !right) return "";
+      return `Instead of "${wrong}", say "${right}"${reason ? " — " + reason : ""}`;
+    }).filter(Boolean);
+
+    if (spoken.length === 0) return "";
+    const prefix = spoken.length === 1 ? "Quick correction. " : `${spoken.length} corrections. `;
+    return prefix + spoken.join(". ") + ".";
+  }
+
   // ── Send to Emma ──────────────────────────────────────────────
   function sendVoiceMessage(text: string) {
     const userMsg: Message = { role: "user", content: text };
@@ -259,14 +293,28 @@ export default function ChatPage() {
       const data = await res.json();
       const reply: string = data.reply ?? "💬 **Emma:** Sorry, connection issue. Try again?\n\n📝 **Corrections:**\n✓ Perfect!";
       const conv = extractConversation(reply);
+      const correctionsRaw = extractCorrections(reply);
+      const spokenFix = buildSpokenCorrections(correctionsRaw);
 
       setUserStatus("idle");
       setMessages(prev => [...prev, { role: "assistant", content: reply, display: "" }]);
+      setEmmaStatus("speaking");
 
-      speakWithTypewriter(conv, () => {
-        setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, display: conv } : m));
-        if (autoRestartRef.current) setTimeout(startListening, 500);
-      });
+      const speakConversation = () => {
+        speakWithTypewriter(conv, () => {
+          setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, display: conv } : m));
+          if (autoRestartRef.current) setTimeout(startListening, 500);
+        });
+      };
+
+      if (spokenFix) {
+        // Say corrections first, then continue with conversation
+        speakPlain(spokenFix, () => {
+          setTimeout(speakConversation, 400);
+        });
+      } else {
+        speakConversation();
+      }
     } catch {
       setUserStatus("idle");
       setMessages(prev => [...prev, {
@@ -514,7 +562,7 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
   const displayText = liveText !== undefined ? liveText : (message.display ?? fullConv);
   const corrections = extractCorrections(message.content);
   const isPerfect = corrections.startsWith("✓");
-  const showFeedback = liveText === undefined;
+  const showFeedback = true;
 
   const correctionLines = corrections
     .split("\n")
