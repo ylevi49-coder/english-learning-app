@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Home, Star, BarChart2, Dumbbell } from "lucide-react";
+import { BookOpen, Home, Star, BarChart2, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/lessons", icon: BookOpen, label: "Lessons" },
   { href: "/vocabulary", icon: Star, label: "Vocab" },
-  { href: "/practice", icon: Dumbbell, label: "Practice" },
+  { href: "/chat", icon: MessageCircle, label: "Chat" },
   { href: "/progress", icon: BarChart2, label: "Progress" },
 ];
 
