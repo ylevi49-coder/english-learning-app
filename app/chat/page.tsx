@@ -520,11 +520,17 @@ function ChatBubble({ message, liveText, extractConversation, extractCorrections
     .split("\n")
     .filter(l => l.includes("❌") && l.includes("✅"))
     .map(line => {
-      const wrong = line.match(/❌ "([^"]+)"/)?.[1] ?? "";
-      const right = line.match(/✅ "([^"]+)"/)?.[1] ?? "";
-      const reason = line.match(/· (.+)/)?.[1] ?? "";
+      // Support both quoted ("phrase") and unquoted formats, and curly quotes
+      const quotePattern = /[""«]([^"""»]+)[""»]/;
+      const wrongMatch = line.match(/❌\s*[""«]?([^"""»→✅]+?)[""»]?\s*→/);
+      const rightMatch = line.match(/✅\s*[""«]?([^"""»·•\n]+?)[""»]?\s*[·•]/);
+      const rightFallback = line.match(/✅\s*[""«]?([^"""»\n]+)/);
+      const wrong = (wrongMatch?.[1] ?? "").trim().replace(/^[""]|[""]$/g, "");
+      const right = (rightMatch?.[1] ?? rightFallback?.[1] ?? "").trim().replace(/^[""]|[""]$/g, "");
+      const reason = (line.match(/[·•]\s*(.+)/)?.[1] ?? "").trim();
       return { wrong, right, reason };
-    });
+    })
+    .filter(c => c.wrong || c.right);
 
   return (
     <div className="flex items-start gap-2">
