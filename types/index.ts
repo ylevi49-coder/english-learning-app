@@ -52,6 +52,8 @@ export interface UserProgress {
   xp: number;
   streak: number;
   lastActivity: string;
+  achievements: string[];
+  placementDone?: boolean;
 }
 
 export interface LevelInfo {

@@ -3,29 +3,36 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Star, Flame, Zap, ChevronRight, Trophy } from "lucide-react";
-import { getProgress, getXPForNextLevel, loadCloudProgress, mergeLocalToCloud, saveProgress } from "@/lib/progress";
+import { getProgress, getXPForNextLevel, loadCloudProgress, mergeLocalToCloud, saveProgress, updateStreak } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
 import BottomNav from "@/components/BottomNav";
+import AchievementToast from "@/components/AchievementToast";
 import { useAuth } from "@/context/AuthContext";
 import type { UserProgress } from "@/types";
 
 export default function HomePage() {
-  const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [progress, setProgress]   = useState<UserProgress | null>(null);
+  const [newAch, setNewAch]       = useState<string[]>([]);
   const { user, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
-    if (user) {
-      mergeLocalToCloud(user.id).then(() =>
-        loadCloudProgress(user.id).then((cloud) => {
-          if (cloud) { saveProgress(cloud); setProgress(cloud); }
-          else setProgress(getProgress());
-        })
-      );
-    } else {
-      setProgress(getProgress());
+    async function init() {
+      if (user) {
+        await mergeLocalToCloud(user.id);
+        const cloud = await loadCloudProgress(user.id);
+        if (cloud) { saveProgress(cloud); setProgress(cloud); }
+        else setProgress(getProgress());
+      } else {
+        setProgress(getProgress());
+      }
+      updateStreak();
+      const fresh = getProgress();
+      setProgress(fresh);
     }
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading]);
 
   if (!progress) return null;
@@ -40,6 +47,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
+      {newAch.length > 0 && <AchievementToast newIds={newAch} onDone={() => setNewAch([])} />}
       {/* Header */}
       <div className="bg-gradient-to-br from-primary-600 to-primary-800 pt-12 pb-20 px-5">
         <div className="max-w-lg mx-auto">
@@ -110,6 +118,18 @@ export default function HomePage() {
             <p className="text-xs text-gray-500">Words known</p>
           </div>
         </div>
+
+        {/* Placement test banner */}
+        {!progress.placementDone && (
+          <Link href="/placement" className="card bg-gradient-to-r from-primary-50 to-indigo-50 border-2 border-primary-200 flex items-center gap-4 hover:border-primary-400 transition-colors">
+            <div className="text-3xl">🧭</div>
+            <div className="flex-1">
+              <p className="font-bold text-primary-800">Find your level</p>
+              <p className="text-sm text-primary-600">Take a quick placement test — 3 min</p>
+            </div>
+            <ChevronRight className="text-primary-400" size={20} />
+          </Link>
+        )}
 
         {/* Quick actions */}
         <h2 className="text-gray-900 font-bold text-lg pt-2">Quick Start</h2>

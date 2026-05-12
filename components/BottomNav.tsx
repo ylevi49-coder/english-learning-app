@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Home, Star, BarChart2, MessageCircle, User } from "lucide-react";
+import { BookOpen, Home, Star, BarChart2, MessageCircle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
@@ -38,19 +38,19 @@ export default function BottomNav() {
           );
         })}
         <Link
-          href="/login"
+          href="/settings"
           className={cn(
             "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors",
-            pathname === "/login" ? "text-primary-600" : "text-gray-400 hover:text-gray-600"
+            pathname === "/settings" ? "text-primary-600" : "text-gray-400 hover:text-gray-600"
           )}
         >
           <div className="relative">
-            <User size={22} strokeWidth={pathname === "/login" ? 2.5 : 1.8} />
+            <Settings size={22} strokeWidth={pathname === "/settings" ? 2.5 : 1.8} />
             {user && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border border-white" />
             )}
           </div>
-          <span>{user ? "Account" : "Login"}</span>
+          <span>Settings</span>
         </Link>
       </div>
     </nav>
