@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const client = new Anthropic();
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? "englishup_verify";
+const APP_SECRET   = process.env.WHATSAPP_APP_SECRET ?? "";
 
 // WhatsApp webhook verification
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const mode = searchParams.get("hub.mode");
-  const token = searchParams.get("hub.verify_token");
+  const mode      = searchParams.get("hub.mode");
+  const token     = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
@@ -18,19 +21,49 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-// WhatsApp webhook for incoming messages
-export async function POST(req: NextRequest) {
+// Verify Meta's X-Hub-Signature-256 header
+function verifySignature(rawBody: string, signature: string | null): boolean {
+  if (!APP_SECRET || !signature) return !APP_SECRET; // skip if no secret configured
   try {
-    const body = await req.json();
-    const entry = body?.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const message = value?.messages?.[0];
+    const expected = "sha256=" + createHmac("sha256", APP_SECRET).update(rawBody).digest("hex");
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const rawBody  = await req.text();
+  const sig      = req.headers.get("x-hub-signature-256");
+
+  if (!verifySignature(rawBody, sig)) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try { body = JSON.parse(rawBody); }
+  catch { return NextResponse.json({ status: "ok" }); }
+
+  try {
+    const entry   = (body?.entry as Record<string, unknown>[])?.[0];
+    const changes = (entry?.changes as Record<string, unknown>[])?.[0];
+    const value   = changes?.value as Record<string, unknown>;
+    const message = (value?.messages as Record<string, unknown>[])?.[0];
 
     if (!message) return NextResponse.json({ status: "ok" });
 
     const from = message.from as string;
-    const text = (message?.text?.body as string) ?? "";
+    const text = ((message?.text as Record<string, unknown>)?.body as string) ?? "";
+
+    // Rate limit per WhatsApp number: 10 messages/minute
+    const { allowed } = checkRateLimit(`wa:${from}`, 10, 60_000);
+    if (!allowed) {
+      await sendWhatsAppMessage(from, "⏳ You're sending messages too fast. Please wait a moment.");
+      return NextResponse.json({ status: "ok" });
+    }
 
     const reply = await generateWhatsAppReply(text);
     await sendWhatsAppMessage(from, reply);
@@ -47,11 +80,11 @@ async function generateWhatsAppReply(userMessage: string): Promise<string> {
 
   if (lower === "word" || lower === "word of the day" || lower === "מילה") {
     const words = [
-      { word: "Resilient", translation: "עמיד/חסין", example: "She is very resilient – nothing stops her!" },
-      { word: "Grateful", translation: "אסיר תודה", example: "I'm grateful for your help." },
-      { word: "Opportunity", translation: "הזדמנות", example: "This is a great opportunity to learn." },
-      { word: "Confident", translation: "בטוח בעצמו", example: "Speak with confidence!" },
-      { word: "Achieve", translation: "להשיג/להצליח", example: "You can achieve anything you set your mind to." },
+      { word: "Resilient",    translation: "עמיד/חסין",      example: "She is very resilient – nothing stops her!" },
+      { word: "Grateful",     translation: "אסיר תודה",      example: "I'm grateful for your help." },
+      { word: "Opportunity",  translation: "הזדמנות",        example: "This is a great opportunity to learn." },
+      { word: "Confident",    translation: "בטוח בעצמו",     example: "Speak with confidence!" },
+      { word: "Achieve",      translation: "להשיג/להצליח",   example: "You can achieve anything you set your mind to." },
     ];
     const w = words[Math.floor(Math.random() * words.length)];
     return `📚 *Word of the Day*\n\n*${w.word}* = ${w.translation}\n\n_"${w.example}"_\n\nSend *quiz* for a quick question or *help* for all commands.`;
@@ -79,6 +112,11 @@ async function generateWhatsAppReply(userMessage: string): Promise<string> {
 
   if (lower === "help" || lower === "עזרה") {
     return `🇬🇧 *EnglishUp Bot*\n\n📚 *word* – Word of the Day\n🎯 *quiz* – Quick grammar quiz\n💡 *tip* – Study tip\n\nOr write anything in English and I'll correct it!`;
+  }
+
+  // Input length guard
+  if (userMessage.length > 500) {
+    return "✏️ Please keep your message under 500 characters so I can give better feedback!";
   }
 
   try {

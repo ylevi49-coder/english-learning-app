@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Star, Flame, Zap, ChevronRight, Trophy } from "lucide-react";
+import WordOfDay from "@/components/WordOfDay";
 import { getProgress, getXPForNextLevel, loadCloudProgress, mergeLocalToCloud, saveProgress, updateStreak } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
@@ -118,6 +119,9 @@ export default function HomePage() {
             <p className="text-xs text-gray-500">Words known</p>
           </div>
         </div>
+
+        {/* Word of the Day */}
+        <WordOfDay />
 
         {/* Placement test banner */}
         {!progress.placementDone && (

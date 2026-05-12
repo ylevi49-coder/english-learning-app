@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit, getClientIP } from "@/lib/rateLimit";
 
 const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 30 requests per minute per IP
+  const ip = getClientIP(req);
+  const { allowed } = checkRateLimit(`chat:${ip}`, 30, 60_000);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+  }
+
   try {
-    const { messages, scenario, level } = await req.json();
+    const body = await req.json();
+    const { messages, scenario, level } = body;
+
+    // Input validation
+    if (!Array.isArray(messages) || messages.length > 50) {
+      return NextResponse.json({ error: "Invalid messages" }, { status: 400 });
+    }
+    for (const m of messages) {
+      if (typeof m.content !== "string" || m.content.length > 2000) {
+        return NextResponse.json({ error: "Message too long" }, { status: 400 });
+      }
+    }
 
     const scenarioPrompts: Record<string, string> = {
       free:     "Have a friendly, natural conversation on any topic.",
@@ -24,10 +43,13 @@ export async function POST(req: NextRequest) {
       C2: "Speak naturally as a native. Use idioms, humor, and complex structures freely.",
     };
 
+    const safeScenario = scenarioPrompts[scenario] ?? scenarioPrompts.free;
+    const safeLevel    = levelGuide[level]          ?? levelGuide.B1;
+
     const systemPrompt = `You are Emma, a warm and encouraging English teacher and conversation partner.
 
-Current scenario: ${scenarioPrompts[scenario] ?? scenarioPrompts.free}
-Student level: ${levelGuide[level] ?? levelGuide.B1}
+Current scenario: ${safeScenario}
+Student level: ${safeLevel}
 
 ALWAYS respond in EXACTLY this format — two sections, nothing else:
 
@@ -54,7 +76,7 @@ Example correction line:
       max_tokens: 500,
       system: systemPrompt,
       messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role,
+        role: m.role as "user" | "assistant",
         content: m.content,
       })),
     });

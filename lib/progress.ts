@@ -85,18 +85,19 @@ export async function loadCloudProgress(userId: string): Promise<UserProgress | 
   };
 }
 
-export async function saveCloudProgress(userId: string, p: UserProgress): Promise<void> {
+export async function saveCloudProgress(userId: string, p: UserProgress, displayName?: string): Promise<void> {
   await supabase.from("user_progress").upsert({
-    user_id:          userId,
-    level:            p.level,
+    user_id:           userId,
+    level:             p.level,
     completed_lessons: p.completedLessons,
     vocabulary_known:  p.vocabularyKnown,
     vocabulary_hard:   p.vocabularyHard,
-    xp:               p.xp,
-    streak:           p.streak,
-    last_activity:    new Date().toISOString(),
-    achievements:     p.achievements ?? [],
-    placement_done:   p.placementDone ?? false,
+    xp:                p.xp,
+    streak:            p.streak,
+    last_activity:     new Date().toISOString(),
+    achievements:      p.achievements ?? [],
+    placement_done:    p.placementDone ?? false,
+    ...(displayName ? { display_name: displayName } : {}),
   }, { onConflict: "user_id" });
 }
 
@@ -123,7 +124,9 @@ export async function mergeLocalToCloud(userId: string): Promise<void> {
 // Fire-and-forget cloud sync
 function syncToCloud(p: UserProgress) {
   supabase.auth.getUser().then(({ data }) => {
-    if (data.user) saveCloudProgress(data.user.id, p);
+    if (!data.user) return;
+    const name = data.user.user_metadata?.name || data.user.email?.split("@")[0] || "Learner";
+    saveCloudProgress(data.user.id, p, name);
   });
 }
 

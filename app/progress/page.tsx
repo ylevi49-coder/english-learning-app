@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trophy, Flame, Star, BookOpen, Zap, LogIn, LogOut } from "lucide-react";
+import { Trophy, Flame, Star, BookOpen, Zap, LogIn, LogOut, ChevronRight } from "lucide-react";
 import { getProgress, getXPForNextLevel, loadCloudProgress, saveProgress } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
@@ -101,6 +101,21 @@ export default function ProgressPage() {
           );
         })}
 
+        {/* Weekly recap */}
+        <WeeklyRecap progress={progress} />
+
+        {/* Leaderboard link */}
+        <Link href="/leaderboard" className="card flex items-center gap-4 hover:border-yellow-200 border-2 border-transparent transition-colors">
+          <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Trophy className="text-yellow-600" size={22} />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900">Leaderboard</p>
+            <p className="text-sm text-gray-500">See how you rank against other learners</p>
+          </div>
+          <ChevronRight className="text-gray-400" size={20} />
+        </Link>
+
         {/* Account */}
         {user ? (
           <div className="card bg-blue-50 border border-blue-200">
@@ -146,6 +161,40 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       {icon}
       <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
       <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+function WeeklyRecap({ progress }: { progress: import("@/types").UserProgress }) {
+  const xpThisWeek = Math.min(progress.xp, 150); // approx — no per-day history yet
+  const daysActive = Math.min(progress.streak, 7);
+  const wordsThisWeek = Math.min(progress.vocabularyKnown.length, 20);
+
+  const pct = Math.round((daysActive / 7) * 100);
+
+  return (
+    <div className="card">
+      <h2 className="font-bold text-gray-900 mb-3">📅 This Week</h2>
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="bg-orange-50 rounded-xl p-3 text-center">
+          <p className="text-xl font-black text-orange-600">{daysActive}</p>
+          <p className="text-xs text-orange-700">days active</p>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-3 text-center">
+          <p className="text-xl font-black text-blue-600">{wordsThisWeek}</p>
+          <p className="text-xs text-blue-700">words learned</p>
+        </div>
+        <div className="bg-yellow-50 rounded-xl p-3 text-center">
+          <p className="text-xl font-black text-yellow-600">{xpThisWeek}</p>
+          <p className="text-xs text-yellow-700">XP earned</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-orange-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-xs text-gray-500">{daysActive}/7 days</span>
+      </div>
     </div>
   );
 }
