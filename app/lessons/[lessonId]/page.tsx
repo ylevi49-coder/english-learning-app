@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, MessageSquare, Star, ChevronRight, CheckCircle, Volume2 } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, ChevronRight, CheckCircle, Printer } from "lucide-react";
 import { getLessonById } from "@/lib/curriculum";
 import { completeLesson, markWordKnown, getProgress } from "@/lib/progress";
 import LevelBadge from "@/components/LevelBadge";
@@ -51,12 +51,23 @@ export default function LessonPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-10">
+      {/* Hidden printable worksheet – shown only on print */}
+      <WorksheetPrint lesson={lesson} />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4">
+      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4 print-hide">
         <div className="max-w-lg mx-auto">
-          <button onClick={() => router.back()} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 mb-3 text-sm">
-            <ArrowLeft size={16} /> Back
-          </button>
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={() => router.back()} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 text-sm">
+              <ArrowLeft size={16} /> Back
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 border border-gray-200 rounded-xl px-3 py-1.5 hover:border-primary-300 transition-colors"
+            >
+              <Printer size={14} /> Worksheet
+            </button>
+          </div>
           <div className="flex items-center gap-2 mb-1">
             <LevelBadge level={lesson.level} />
             {completed && <span className="text-xs text-green-600 font-semibold flex items-center gap-1"><CheckCircle size={12} /> Completed</span>}
@@ -81,7 +92,7 @@ export default function LessonPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-4 animate-fadeIn">
+      <div className="max-w-lg mx-auto px-4 py-4 animate-fadeIn print-hide">
         {/* VOCABULARY */}
         {tab === "vocabulary" && (
           <div className="space-y-3">
@@ -168,6 +179,122 @@ export default function LessonPage() {
             </Button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Printable Worksheet ─────────────────────────────────
+function WorksheetPrint({ lesson }: { lesson: Lesson }) {
+  const answers = lesson.exercises.map((ex, i) => `${i + 1}. ${Array.isArray(ex.answer) ? ex.answer.join(", ") : ex.answer}`);
+
+  return (
+    <div className="print-worksheet" style={{ display: "none", padding: "24px", fontFamily: "Georgia, serif", color: "#000" }}>
+      {/* Header */}
+      <div className="ws-header">
+        <h1 style={{ fontSize: 22, fontWeight: "bold", margin: "0 0 4px" }}>
+          English Worksheet – {lesson.level}: {lesson.title}
+        </h1>
+        <p style={{ fontSize: 11, color: "#555", margin: 0 }}>
+          {lesson.description} &nbsp;|&nbsp; Name: _________________________ &nbsp;|&nbsp; Date: _____________
+        </p>
+      </div>
+
+      {/* Vocabulary */}
+      <div className="ws-section">
+        <div className="ws-section-title">Part 1 – Vocabulary</div>
+        <table className="ws-vocab-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th style={{ border: "1px solid #ccc", padding: "5px 8px", background: "#eee", textAlign: "left" }}>#</th>
+              <th style={{ border: "1px solid #ccc", padding: "5px 8px", background: "#eee", textAlign: "left" }}>English</th>
+              <th style={{ border: "1px solid #ccc", padding: "5px 8px", background: "#eee", textAlign: "left" }}>Hebrew</th>
+              <th style={{ border: "1px solid #ccc", padding: "5px 8px", background: "#eee", textAlign: "left" }}>Example Sentence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lesson.vocabulary.map((w, i) => (
+              <tr key={w.id}>
+                <td style={{ border: "1px solid #ccc", padding: "5px 8px", background: i % 2 === 1 ? "#f9f9f9" : undefined }}>{i + 1}</td>
+                <td style={{ border: "1px solid #ccc", padding: "5px 8px", fontWeight: "bold", background: i % 2 === 1 ? "#f9f9f9" : undefined }}>{w.word}</td>
+                <td style={{ border: "1px solid #ccc", padding: "5px 8px", color: "#444", background: i % 2 === 1 ? "#f9f9f9" : undefined }}>{w.translation}</td>
+                <td style={{ border: "1px solid #ccc", padding: "5px 8px", fontStyle: "italic", background: i % 2 === 1 ? "#f9f9f9" : undefined }}>{w.example}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Grammar */}
+      <div className="ws-section">
+        <div className="ws-section-title">Part 2 – Grammar: {lesson.grammar.title}</div>
+        <div className="ws-grammar-box" style={{ border: "1px solid #bbb", padding: "10px 14px", background: "#fafafa", marginBottom: 10, fontSize: 11 }}>
+          <div style={{ whiteSpace: "pre-line", lineHeight: 1.6 }}>{lesson.grammar.explanation}</div>
+          {lesson.grammar.tip && (
+            <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 6, color: "#555", fontSize: 10 }}>
+              💡 Tip: {lesson.grammar.tip}
+            </div>
+          )}
+        </div>
+        <p style={{ fontSize: 10, fontWeight: "bold", margin: "0 0 4px" }}>Examples:</p>
+        {lesson.grammar.examples.map((ex, i) => (
+          <div key={i} style={{ fontSize: 11, marginBottom: 3 }}>→ <em>{ex}</em></div>
+        ))}
+      </div>
+
+      {/* Exercises */}
+      <div className="ws-section" style={{ marginTop: 12 }}>
+        <div className="ws-section-title">Part 3 – Exercises</div>
+        {lesson.exercises.map((ex, i) => (
+          <div key={ex.id} className="ws-exercise" style={{ marginBottom: 16, fontSize: 11 }}>
+            <div className="ws-exercise-q" style={{ fontWeight: "bold", marginBottom: 4 }}>
+              {i + 1}. {ex.question}
+            </div>
+            {ex.options && (
+              <ol type="A" style={{ paddingLeft: 24, margin: "4px 0" }}>
+                {ex.options.map((opt, j) => (
+                  <li key={j} style={{ marginBottom: 2 }}>{opt}</li>
+                ))}
+              </ol>
+            )}
+            {ex.type === "fill_blank" && (
+              <div style={{ marginTop: 4 }}>
+                Answer: <span style={{ display: "inline-block", borderBottom: "1.5px solid black", minWidth: 120, marginLeft: 4 }}>&nbsp;</span>
+              </div>
+            )}
+            {ex.type === "reorder_words" && (
+              <div style={{ marginTop: 4 }}>
+                Your answer: <span style={{ display: "inline-block", borderBottom: "1.5px solid black", minWidth: 200, marginLeft: 4 }}>&nbsp;</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Reading */}
+      {lesson.readingText && (
+        <div className="ws-section" style={{ marginTop: 12 }}>
+          <div className="ws-section-title">Part 4 – Reading</div>
+          <div className="ws-reading" style={{ fontSize: 11, lineHeight: 1.7, border: "1px solid #ccc", padding: 12, background: "#fefefe" }}>
+            {lesson.readingText.split("\n\n").map((para, i) => (
+              <p key={i} style={{ margin: "0 0 10px" }}>{para}</p>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11 }}>
+            <p style={{ fontWeight: "bold", marginBottom: 4 }}>Reading Comprehension – write your answers below:</p>
+            {[1, 2, 3].map(n => (
+              <div key={n} style={{ marginBottom: 8 }}>
+                {n}. _______________________________________________________________
+                <div style={{ borderBottom: "1px solid #aaa", marginTop: 2 }}></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Answer Key */}
+      <div className="ws-answer-key" style={{ fontSize: 9, color: "#666", borderTop: "1px dashed #aaa", marginTop: 20, paddingTop: 8 }}>
+        <strong>Answer Key:</strong> {answers.join(" | ")}
       </div>
     </div>
   );

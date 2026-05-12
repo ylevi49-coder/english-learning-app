@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, CheckCircle, ChevronRight, GraduationCap } from "lucide-react";
+import { BookOpen, CheckCircle, ChevronRight, GraduationCap, Map, List } from "lucide-react";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import { getProgress } from "@/lib/progress";
 import LevelBadge from "@/components/LevelBadge";
@@ -22,6 +22,7 @@ function LessonsContent() {
   const searchParams = useSearchParams();
   const [activeLevel, setActiveLevel] = useState<CEFRLevel>("A1");
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"list" | "path">("path");
 
   useEffect(() => {
     const lvl = (searchParams.get("level") as CEFRLevel) || getProgress().level;
@@ -50,21 +51,35 @@ function LessonsContent() {
             </Link>
           </div>
 
-          {/* Level tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {LEVEL_INFO.map(({ level }) => (
+          {/* Level tabs + view toggle */}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-1">
+              {LEVEL_INFO.map(({ level }) => (
+                <button
+                  key={level}
+                  onClick={() => setActiveLevel(level)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    activeLevel === level
+                      ? "bg-primary-600 text-white shadow-sm"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
               <button
-                key={level}
-                onClick={() => setActiveLevel(level)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                  activeLevel === level
-                    ? "bg-primary-600 text-white shadow-sm"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {level}
-              </button>
-            ))}
+                onClick={() => setViewMode("path")}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === "path" ? "bg-primary-100 text-primary-700" : "text-gray-400 hover:text-gray-600"}`}
+                title="Course path view"
+              ><Map size={16} /></button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === "list" ? "bg-primary-100 text-primary-700" : "text-gray-400 hover:text-gray-600"}`}
+                title="List view"
+              ><List size={16} /></button>
+            </div>
           </div>
         </div>
       </div>
@@ -82,27 +97,24 @@ function LessonsContent() {
           </p>
         </div>
 
-        {/* Lessons list */}
-        <div className="space-y-3">
-          {lessons.length === 0 ? (
-            <div className="card text-center py-10">
-              <BookOpen className="mx-auto mb-3 text-gray-300" size={40} />
-              <p className="text-gray-500">More lessons coming soon!</p>
-            </div>
-          ) : (
-            lessons.map((lesson, idx) => {
+        {/* Lessons */}
+        {lessons.length === 0 ? (
+          <div className="card text-center py-10">
+            <BookOpen className="mx-auto mb-3 text-gray-300" size={40} />
+            <p className="text-gray-500">More lessons coming soon!</p>
+          </div>
+        ) : viewMode === "path" ? (
+          <CoursePath lessons={lessons} completedLessons={completedLessons} />
+        ) : (
+          <div className="space-y-3">
+            {lessons.map((lesson, idx) => {
               const done = completedLessons.includes(lesson.id);
               return (
-                <LessonCard
-                  key={lesson.id}
-                  lesson={lesson}
-                  done={done}
-                  index={idx + 1}
-                />
+                <LessonCard key={lesson.id} lesson={lesson} done={done} index={idx + 1} />
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       <BottomNav />
@@ -142,5 +154,84 @@ function LessonCard({ lesson, done, index }: { lesson: Lesson; done: boolean; in
       </div>
       <ChevronRight className="text-gray-400 flex-shrink-0" size={18} />
     </Link>
+  );
+}
+
+// ─── Visual Course Path ───────────────────────────────────
+function CoursePath({
+  lessons,
+  completedLessons,
+}: {
+  lessons: Lesson[];
+  completedLessons: string[];
+}) {
+  // Arrange lessons in a zigzag: columns alternate left / centre / right
+  const positions = ["left", "center", "right", "center"] as const;
+
+  return (
+    <div className="flex flex-col items-center gap-0 py-2">
+      {lessons.map((lesson, idx) => {
+        const done = completedLessons.includes(lesson.id);
+        const isLast = idx === lessons.length - 1;
+        const pos = positions[idx % 4];
+
+        const nodeAlignClass =
+          pos === "left" ? "self-start ml-4" :
+          pos === "right" ? "self-end mr-4" :
+          "self-center";
+
+        const connectorAlignClass =
+          pos === "left" ? "items-start pl-10" :
+          pos === "right" ? "items-end pr-10" :
+          "items-center";
+
+        return (
+          <div key={lesson.id} className="w-full flex flex-col">
+            {/* Node */}
+            <Link
+              href={`/lessons/${lesson.id}`}
+              className={`${nodeAlignClass} flex flex-col items-center gap-1 group`}
+            >
+              <div
+                className={`w-16 h-16 rounded-full flex items-center justify-center shadow-md transition-all group-hover:scale-105 border-4 ${
+                  done
+                    ? "bg-green-500 border-green-300 text-white"
+                    : "bg-white border-gray-200 group-hover:border-primary-400 text-gray-600"
+                }`}
+              >
+                {done ? (
+                  <CheckCircle size={28} className="text-white" />
+                ) : (
+                  <span className="text-lg font-bold">{idx + 1}</span>
+                )}
+              </div>
+              <div className={`text-center max-w-[110px] ${nodeAlignClass}`}>
+                <p className={`text-xs font-semibold leading-tight ${done ? "text-green-700" : "text-gray-700"}`}>
+                  {lesson.title}
+                </p>
+                {lesson.readingText && (
+                  <span className="text-[10px] text-blue-500">📖 Reading</span>
+                )}
+              </div>
+            </Link>
+
+            {/* Connector line */}
+            {!isLast && (
+              <div className={`flex flex-col ${connectorAlignClass} h-10`}>
+                <div className="w-0.5 h-full bg-gray-200" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Completion badge */}
+      {lessons.every((l) => completedLessons.includes(l.id)) && (
+        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl px-6 py-3 text-center">
+          <p className="text-lg">🏆</p>
+          <p className="text-sm font-bold text-yellow-700">Level Complete!</p>
+        </div>
+      )}
+    </div>
   );
 }
