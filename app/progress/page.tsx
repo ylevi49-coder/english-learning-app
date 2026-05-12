@@ -1,19 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trophy, Flame, Star, BookOpen, Zap, BarChart2 } from "lucide-react";
-import { getProgress, getXPForNextLevel } from "@/lib/progress";
+import Link from "next/link";
+import { Trophy, Flame, Star, BookOpen, Zap, LogIn, LogOut } from "lucide-react";
+import { getProgress, getXPForNextLevel, loadCloudProgress, saveProgress } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
 import BottomNav from "@/components/BottomNav";
+import { useAuth } from "@/context/AuthContext";
 import type { UserProgress } from "@/types";
 
 export default function ProgressPage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
+  const { user, loading, signOut } = useAuth();
 
   useEffect(() => {
-    setProgress(getProgress());
-  }, []);
+    if (loading) return;
+    if (user) {
+      loadCloudProgress(user.id).then((cloud) => {
+        if (cloud) { saveProgress(cloud); setProgress(cloud); }
+        else setProgress(getProgress());
+      });
+    } else {
+      setProgress(getProgress());
+    }
+  }, [user, loading]);
 
   if (!progress) return null;
 
@@ -90,19 +101,38 @@ export default function ProgressPage() {
           );
         })}
 
-        {/* WhatsApp link */}
-        <div className="card bg-green-50 border border-green-200">
-          <h3 className="font-bold text-green-800 mb-1">📱 Connect WhatsApp</h3>
-          <p className="text-sm text-green-700 mb-3">
-            Get daily vocabulary, exercises, and grammar tips sent to your WhatsApp
-          </p>
-          <a
-            href="/settings"
-            className="inline-block bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
-          >
-            Set up WhatsApp →
-          </a>
-        </div>
+        {/* Account */}
+        {user ? (
+          <div className="card bg-blue-50 border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-blue-500 font-medium uppercase tracking-wide mb-0.5">Signed in as</p>
+                <p className="font-bold text-blue-900 text-sm">{user.user_metadata?.name || user.email}</p>
+                <p className="text-xs text-blue-600">Progress saved to cloud ☁️</p>
+              </div>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-1.5 bg-white border border-blue-200 text-blue-700 text-sm font-semibold px-3 py-2 rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                <LogOut size={15} />
+                Sign out
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="card bg-gray-50 border border-gray-200">
+            <p className="text-sm text-gray-600 mb-3">
+              Sign in to save your progress to the cloud and continue on any device.
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+            >
+              <LogIn size={15} />
+              Sign in / Create account
+            </Link>
+          </div>
+        )}
       </div>
 
       <BottomNav />

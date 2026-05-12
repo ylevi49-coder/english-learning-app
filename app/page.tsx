@@ -3,18 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, Star, Flame, Zap, ChevronRight, Trophy } from "lucide-react";
-import { getProgress, getXPForNextLevel } from "@/lib/progress";
+import { getProgress, getXPForNextLevel, loadCloudProgress, mergeLocalToCloud, saveProgress } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
 import BottomNav from "@/components/BottomNav";
+import { useAuth } from "@/context/AuthContext";
 import type { UserProgress } from "@/types";
 
 export default function HomePage() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    setProgress(getProgress());
-  }, []);
+    if (loading) return;
+    if (user) {
+      mergeLocalToCloud(user.id).then(() =>
+        loadCloudProgress(user.id).then((cloud) => {
+          if (cloud) { saveProgress(cloud); setProgress(cloud); }
+          else setProgress(getProgress());
+        })
+      );
+    } else {
+      setProgress(getProgress());
+    }
+  }, [user, loading]);
 
   if (!progress) return null;
 
@@ -32,7 +44,9 @@ export default function HomePage() {
       <div className="bg-gradient-to-br from-primary-600 to-primary-800 pt-12 pb-20 px-5">
         <div className="max-w-lg mx-auto">
           <p className="text-primary-200 text-sm font-medium mb-1">Welcome back 👋</p>
-          <h1 className="text-white text-2xl font-bold mb-6">Keep learning English!</h1>
+          <h1 className="text-white text-2xl font-bold mb-6">
+            {user ? `Hi, ${user.user_metadata?.name?.split(" ")[0] || user.email?.split("@")[0]}!` : "Keep learning English!"}
+          </h1>
 
           {/* XP bar */}
           <div className="bg-primary-700/50 rounded-2xl p-4">
