@@ -16,6 +16,7 @@ function speakWord(word: string) {
 }
 
 import { LESSONS } from "@/lib/curriculum";
+import { VOCAB_BANK } from "@/lib/vocab-bank";
 import { getProgress, markWordKnown, markWordHard, unmarkWordHard } from "@/lib/progress";
 import { Button } from "@/components/ui/button";
 import LevelBadge from "@/components/LevelBadge";
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 interface CardWithLevel extends VocabWord {
   level: CEFRLevel;
+  source?: "lesson" | "bank";
 }
 
 type ViewMode = "flashcard" | "recall" | "list";
@@ -39,10 +41,18 @@ export default function VocabularyPage() {
   const [mode, setMode] = useState<ViewMode>("flashcard");
 
   useEffect(() => {
-    const words: CardWithLevel[] = LESSONS.flatMap((l) =>
-      l.vocabulary.map((w) => ({ ...w, level: l.level }))
+    const lessonWords: CardWithLevel[] = LESSONS.flatMap((l) =>
+      l.vocabulary.map((w) => ({ ...w, level: l.level, source: "lesson" as const }))
     );
-    setAllWords(words);
+    const bankWords: CardWithLevel[] = VOCAB_BANK.map((w) => ({ ...w, source: "bank" as const }));
+    // deduplicate by id
+    const seen = new Set<string>();
+    const combined = [...lessonWords, ...bankWords].filter((w) => {
+      if (seen.has(w.id)) return false;
+      seen.add(w.id);
+      return true;
+    });
+    setAllWords(combined);
     const p = getProgress();
     setKnownWords(p.vocabularyKnown);
     setHardWords(p.vocabularyHard ?? []);
@@ -104,7 +114,7 @@ export default function VocabularyPage() {
         <div className="max-w-lg mx-auto">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Vocabulary</h1>
           <p className="text-sm text-gray-500 mb-3">
-            {knownWords.length} known · {hardCount} to review · {allWords.length} total
+            {knownWords.length} known · {hardCount} to review · <span className="font-semibold text-gray-700">{allWords.length}</span> total words
           </p>
 
           {/* Level filter */}
@@ -207,7 +217,12 @@ function FlashcardMode({ card, flipped, onFlip, onKnow, onHard, onUnhard, onPrev
           isHard ? "border-orange-200" : "border-primary-100")}>
         {!flipped ? (
           <>
-            <LevelBadge level={card.level} />
+            <div className="flex items-center gap-2">
+              <LevelBadge level={card.level} />
+              {(card as CardWithLevel & { topic?: string }).topic && (
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{(card as CardWithLevel & { topic?: string }).topic}</span>
+              )}
+            </div>
             <p className="text-3xl font-bold text-gray-900">{card.word}</p>
             <p className="text-sm text-gray-400">Tap to reveal translation</p>
           </>
@@ -377,9 +392,12 @@ function WordList({ words, knownWords, hardWords, onMarkKnown, onMarkHard, onUnm
               known ? "border-green-200 bg-green-50/40" :
               hard ? "border-orange-200 bg-orange-50/40" : "border-transparent")}>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-gray-900">{w.word}</span>
                 <LevelBadge level={w.level} />
+                {(w as CardWithLevel & { topic?: string }).topic && (
+                  <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">{(w as CardWithLevel & { topic?: string }).topic}</span>
+                )}
                 {hard && !known && <span className="text-xs text-orange-500 font-bold">🔁</span>}
                 <button onClick={() => speakWord(w.word)}
                   className="p-1 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0">
