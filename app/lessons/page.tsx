@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, CheckCircle, ChevronRight } from "lucide-react";
+import { BookOpen, CheckCircle, ChevronRight, GraduationCap } from "lucide-react";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import { getProgress } from "@/lib/progress";
 import LevelBadge from "@/components/LevelBadge";
@@ -37,7 +37,18 @@ function LessonsContent() {
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-5 pt-12 pb-4">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Lessons</h1>
+          {/* Page tabs */}
+          <div className="flex gap-2 mb-4">
+            <span className="px-4 py-1.5 rounded-full text-sm font-bold bg-primary-600 text-white">
+              Lessons
+            </span>
+            <Link
+              href="/grammar"
+              className="px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+            >
+              <GraduationCap size={14} /> Grammar Guide
+            </Link>
+          </div>
 
           {/* Level tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
