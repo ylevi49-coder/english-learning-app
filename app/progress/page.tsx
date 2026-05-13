@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trophy, Flame, Star, BookOpen, Zap, LogIn, LogOut, ChevronRight } from "lucide-react";
+import { Trophy, Flame, Star, BookOpen, Zap, LogIn, LogOut, ChevronRight, Brain } from "lucide-react";
 import { getProgress, getXPForNextLevel, loadCloudProgress, saveProgress } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
 import LevelBadge from "@/components/LevelBadge";
@@ -103,6 +103,18 @@ export default function ProgressPage() {
 
         {/* Weekly recap */}
         <WeeklyRecap progress={progress} />
+
+        {/* AI Exam link */}
+        <Link href="/exam" className="card flex items-center gap-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 hover:border-indigo-400 transition-all">
+          <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Brain className="text-indigo-600" size={22} />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-indigo-900">Take AI Exam</p>
+            <p className="text-sm text-indigo-600">Test your level · get a grade + feedback</p>
+          </div>
+          <ChevronRight className="text-indigo-400" size={20} />
+        </Link>
 
         {/* Leaderboard link */}
         <Link href="/leaderboard" className="card flex items-center gap-4 hover:border-yellow-200 border-2 border-transparent transition-colors">

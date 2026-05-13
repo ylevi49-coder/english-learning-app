@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Star, Flame, Zap, ChevronRight, Trophy } from "lucide-react";
+import { BookOpen, Star, Flame, Zap, ChevronRight, Trophy, Brain } from "lucide-react";
 import WordOfDay from "@/components/WordOfDay";
 import { getProgress, getXPForNextLevel, loadCloudProgress, mergeLocalToCloud, saveProgress, updateStreak } from "@/lib/progress";
 import { LEVEL_INFO, getLessonsByLevel } from "@/lib/curriculum";
@@ -158,6 +158,21 @@ export default function HomePage() {
             <p className="text-sm text-gray-500">{progress.vocabularyKnown.length} words mastered</p>
           </div>
           <ChevronRight className="text-gray-400" size={20} />
+        </Link>
+
+        {/* AI Exam banner */}
+        <Link
+          href="/exam"
+          className="card flex items-center gap-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 hover:border-indigo-400 transition-all hover:shadow-md"
+        >
+          <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Brain className="text-indigo-600" size={22} />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-indigo-900">AI Level Exam</p>
+            <p className="text-sm text-indigo-600">Personalised test · graded by Claude</p>
+          </div>
+          <ChevronRight className="text-indigo-400" size={20} />
         </Link>
 
         <Link href="/practice" className="card flex items-center gap-4 hover:border-green-200 border-2 border-transparent transition-colors">
